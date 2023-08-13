@@ -1,0 +1,158 @@
+---
+title: "Cleaning Cylistic Data 2023-06"
+output: pdf_document
+date: "2023-07-31"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidytext)
+library(dplyr)
+library(ggplot2)
+
+```
+
+## Import data 
+```{r import_datas}
+data_01 <- read.csv(file="dataset/202306-divvy-tripdata.csv")
+```
+
+## Check data 01
+
+Check the data type for each meta
+
+```{r check_data_01}
+str(data_01)
+summary(data_01)
+```
+From meta check we know that data type of column "started_at" and "end_at" should be datetime
+
+
+## Check duplicate data 01
+
+```{r check_duplicate_01}
+print(data_01[duplicated(data_01), ])
+
+```
+
+Duplicate data checking result : no data duplicate in data_01
+
+## Remove duplicate data 
+
+Remove Duplicate data result : No data to remove
+
+## Check missing value data in character data type
+```{r check_missing_value_01}
+count(data_01[is.na(data_01$ride_id) | data_01$ride_id=="", ])
+count(data_01[is.na(data_01$rideable_type) | data_01$rideable_type=="", ])
+count(data_01[is.na(data_01$started_at) | data_01$started_at=="", ])
+count(data_01[is.na(data_01$ended_at) | data_01$ended_at=="", ])
+count(data_01[data_01$start_station_name=="", ])
+count(data_01[data_01$start_station_id=="", ])
+count(data_01[data_01$end_station_name=="", ])
+count(data_01[data_01$end_station_id=="", ])
+count(data_01[is.na(data_01$member_casual) | data_01$member_casual=="", ])
+```
+
+Missing value checking result : 
+
+ride_id: [0]
+
+rideable_type: [0]
+
+started_at: [0]
+
+ended_at: [0]
+
+start_station_name: [116,259]
+
+start_station_id: [116,259]
+
+end_station_name: [124,050]
+
+end_station_id:  [124,050]
+
+member_casual: [0]
+
+## Fill Missing value with NA
+
+Missing value (empty data) in start_station_name, start_station_id, end_station_name, end_station_id will be filling with NA
+```{r fill_missing_value_01}
+
+data_01 <- replace(data_01, data_01 == "", NA)
+
+```
+
+Fill missing value result : empty data was replace with NA
+
+## Check missing value data
+```{r check_missing_value_coord_01}
+count(data_01[is.na(data_01$start_lat) | data_01$start_lat=="", ])
+count(data_01[is.na(data_01$start_lng) | data_01$start_lng=="", ])
+count(data_01[is.na(data_01$end_lat) | data_01$end_lat=="", ])
+count(data_01[is.na(data_01$end_lng) | data_01$end_lng=="", ])
+
+```
+Missing value checking result : 
+
+start latitude and langitude : [0]
+
+end latitude and langitude : [889]
+
+## Remove Missing value with NA
+
+Missing value in end_lat, end_lng will be delete by remove the row
+```{r remove_missing_value_01}
+
+# remove missing value data in this other data if there are also missing values 
+# data_01 <- data_01[!is.na(data_01$rideable_type), ]
+# data_01 <- data_01[!is.na(data_01$started_at), ]
+# data_01 <- data_01[!is.na(data_01$ended_at), ]
+# data_01 <- data_01[!is.na(data_01$member_casual), ]
+
+data_01 <- data_01[!is.na(data_01$end_lat), ]
+data_01 <- data_01[!is.na(data_01$end_lng), ]
+
+count(data_01[is.na(data_01$end_lat) | data_01$end_lat=="", ])
+count(data_01[is.na(data_01$end_lng) | data_01$end_lng=="", ])
+```
+
+Remove missing value result : Row with missing value data was removed 
+
+## Check outliers in coordinate data
+```{r check_outliers_01}
+print(cat("start_lat : mean max min : ", 
+    mean(data_01$start_lat), 
+    max(data_01$start_lat), 
+    min(data_01$start_lat)))
+print(cat("start_lng : mean max min : ", 
+    mean(data_01$start_lng), max(data_01$start_lng), min(data_01$start_lng)))
+print(cat("end_lat : mean max min : ", 
+    mean(data_01$end_lat), max(data_01$end_lat), min(data_01$end_lat)))
+print(cat("end_lng : mean max min : ", 
+    mean(data_01$end_lng), max(data_01$end_lng), min(data_01$end_lng)))
+
+```
+Outliers checking result : no outliers in coordinate data, max and min value for each data doesnt far from average value
+
+## Remove useless column data
+
+Acording to the bussines task, start_station_name and end_station_name will be remove
+```{r remove_useless_data_01}
+
+data_01 <- data_01[, -which(names(data_01) == "start_station_name")]
+data_01 <- data_01[, -which(names(data_01) == "end_station_name")]
+
+head(data_01)
+str(data_01)
+
+```
+
+## Export clean data into csv
+```{r export_01}
+
+# write.csv(data_01, "dataclean/202306-clean.csv", row.names = FALSE)
+
+```
+

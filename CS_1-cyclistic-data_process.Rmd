@@ -1,0 +1,399 @@
+---
+title: "Cyclistic - Data Process"
+output: pdf_document
+date: "2023-08-06"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidytext)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(tidyr)
+library(tidyverse)
+
+```
+
+## Import and bind data into data frame 
+```{r import_join_datas}
+
+# use this code if data_all.RData not available
+
+# data_all <- rbind(read.csv("dataclean/202207-clean.csv"), 
+#               read.csv("dataclean/202208-clean.csv"), 
+#               read.csv("dataclean/202209-clean.csv"),
+#               read.csv("dataclean/202210-clean.csv"),
+#               read.csv("dataclean/202211-clean.csv"),
+#               read.csv("dataclean/202212-clean.csv"),
+#               read.csv("dataclean/202301-clean.csv"),
+#               read.csv("dataclean/202302-clean.csv"),
+#               read.csv("dataclean/202303-clean.csv"),
+#               read.csv("dataclean/202304-clean.csv"),
+#               read.csv("dataclean/202305-clean.csv"),
+#               read.csv("dataclean/202306-clean.csv"))
+
+# load save environtment if data_all.RData available
+load("data_all.RData")
+
+```
+
+```{r count_data}
+head(data_all)
+count(data_all)
+```
+## Format data datetime to correct it data types
+
+format started_at and ended_at from char to datetime or S3: POSIXct
+```{r format_datetime_data}
+
+data_all$started_at <- as.POSIXct(data_all$started_at, format="%Y-%m-%d %H:%M:%S", tz="UTC")
+data_all$ended_at <- as.POSIXct(data_all$ended_at, format="%Y-%m-%d %H:%M:%S", tz="UTC")
+
+head(data_all)
+```
+
+## count time duration in each data and join it into table
+```{r join_count_duration}
+
+data_all$time_total <- data_all$ended_at - data_all$started_at
+
+head(data_all)
+
+```
+## separate year, month, and day in each data and join it into table
+```{r time_separate}
+
+data_all <- data_all %>% 
+  mutate(year = year(started_at), 
+         month = month(started_at), 
+         day = day(started_at))
+  
+head(data_all)
+```
+
+
+## save data into .RData files
+```{r save_bind_join_data}
+
+#save environtment data_all
+# save(data_all, file="data_all.RData")
+
+```
+
+## Visualize data
+
+### Visualize total ride of casual and member
+
+#### a. Total ride in a year (July 2022 - June 2023)
+```{r tot_year}
+# count total ride for casual and member in bilion
+
+ride_total <- data.frame(label=c("member", "casual"),
+                         total=c(count(data_all[data_all$member_casual == "member", ])[1,1],
+                                count(data_all[data_all$member_casual == "casual", ])[1,1]
+                                         )
+                         )
+
+ride_total
+
+
+```
+```{r vis_tot_year}
+
+# Visualize into barchart
+ride_total %>% 
+  ggplot(aes(x=label, y=total/1000, fill=label)) +
+  geom_col(show.legend = FALSE) +
+  geom_text(aes(label = paste0(sprintf("%.0f", total/1000), "K")), color = "red") +
+  ylab("Total bike in thousand") +
+  xlab("Member_casual")
+
+```
+
+From visualize we know that member users is bike more often than casual users
+
+
+#### b. Total ride monthly (July 2022 - June 2023)
+```{r set_month_data}
+# initialize data frame
+ride_total_month <- data.frame(month = c("jul", "aug", "sep", "oct", "nov", "dec", "jan", "feb", 
+                                         "march", "apr", "mei", "jun",
+                                         "jul", "aug", "sep", "oct", "nov", "dec", "jan", "feb",
+                                         "march", "apr", "mei", "jun"))
+count_df <- data.frame(member_casual = c(NA), total = c(NA))
+
+```
+
+```{r get_month_data}
+# set function to get month data using loop
+
+count_ride <- function(data = data_all, mem_cas){
+  #this function to take the ride data on data frame  
+  
+  if(mem_cas == "member") {
+      count_data <-  count(data[data$member_casual == mem_cas & data$month == 7, ])[1,1]
+      count_df <- data.frame(member_casual = c(mem_cas), total = c(count_data)) 
+  }
+  else {
+    count_data <-  count(data[data$member_casual == mem_cas & data$month == 7, ])[1,1]
+      count_df[nrow(count_df) + 1, ] <- c(member_casual = mem_cas, total = count_data)
+  }
+  for (i in 8:12) {
+      count_data <-  count(data[data$member_casual == mem_cas & data$month == i, ])[1,1]
+      count_df[nrow(count_df) + 1, ] <- c(member_casual = mem_cas, total = count_data)
+  }
+  for (i in 1:6) {
+    count_data <-  count(data[data$member_casual == mem_cas & data$month == i, ])[1,1]
+    count_df[nrow(count_df) + 1, ] <- c(member_casual = mem_cas, total = count_data)
+  }
+  
+  return(count_df)
+}
+
+#get data ride
+count_df <- count_df[nrow(count_df) + 1, ] <- count_ride(mem_cas = "member") 
+count_df <- count_df[nrow(count_df) + 1, ] <- count_ride(mem_cas = "casual") 
+
+```
+
+```{r tot_ride_in_month}
+
+# join into table
+ride_total_month$member_casual <- count_df$member_casual
+ride_total_month$total <-  as.numeric(count_df$total)
+
+ride_total_month
+
+```
+
+```{r vis_tot_month}
+
+# Visualize into barchart
+
+ride_total_month %>% 
+  ggplot(aes(fill=member_casual, y=total/1000, x=fct_inorder(month))) + 
+  geom_bar(position="dodge", stat="identity") +
+  ylab("Total bike in thousand") +
+  xlab("Member_casual")
+
+```
+Form visualize we know that there are more bikers in middle of the year (in US this is spring time)
+
+#### c. Total ride daily of all month (July 2022 - June 2023)
+```{r set_day_data}
+# initialize data frame
+
+ride_total_days <- data.frame(dates = c(NA), member_casual = c(NA), total = c(NA))
+
+```
+
+```{r get_day_data}
+# set function to get daily data using loop
+
+count_ride <- function(data = data_all, mem_cas, count_df = NA){
+  #this function to take the ride data on data frame  
+  
+  i = 1
+  if(mem_cas == "member") {
+    count_data <-  count(data[data$member_casual == mem_cas & data$day == i, ])[1,1]
+    count_df <- data.frame(dates = c(i), member_casual = c(mem_cas), total = c(count_data)) 
+  }
+  else {
+    count_data <-  count(data[data$member_casual == mem_cas & data$day == i, ])[1,1]
+    count_df[nrow(count_df) + 1, ] <- c(dates = i, member_casual = mem_cas, total = count_data)
+  }
+  
+  for (i in 2:31) {
+    count_data <-  count(data[data$member_casual == mem_cas & data$day == i, ])[1,1]
+    count_df[nrow(count_df) + 1, ] <- c(dates = i, member_casual = mem_cas, total = count_data)
+    }
+  return(count_df)
+}
+
+```
+
+```{r tot_ride_in_days}
+
+#get data ride
+ride_total_days <- ride_total_days[nrow(ride_total_days) + 1, ] <- count_ride(mem_cas = "member") 
+ride_total_days <- ride_total_days[nrow(ride_total_days) + 1, ] <- count_ride(mem_cas = "casual", count_df = ride_total_days) 
+
+ride_total_days$total <-  as.numeric(ride_total_days$total)
+
+ride_total_days
+
+```
+
+```{r vis_tot_day_in_month}
+
+# Visualize into bar chart
+
+ride_total_days %>% 
+  ggplot(aes(fill=member_casual, y=total/1000, x=fct_inorder(dates))) + 
+  geom_bar(position="dodge", stat="identity") +
+  ylab("Total bike in thousand") +
+  xlab("Member_casual")
+
+```
+From Visualize we know that bike data are distributed evenly for every dates 
+
+### Visualize duration ride of casual and member
+```{r separate_member_casual}
+data_member <- data_all[data_all$member_casual == "member", ]
+data_casual <- data_all[data_all$member_casual == "casual", ]
+```
+
+#### a. Average ride duration in a year (July 2022 - June 2023)
+```{r dur_year}
+# average ride duration for casual and member in bilion
+ 
+ride_duration <- data.frame(member_casual = c("member", "casual"),
+                            duration = c(
+                              mean(data_member$time_total),
+                              mean(data_casual$time_total)
+                            ))
+
+ride_duration
+
+# print(sum(data_member$time_total))
+```
+
+```{r vis_dur_year}
+
+# Visualize into barchart
+ride_duration %>% 
+  ggplot(aes(x=member_casual, y=as.numeric(duration)/60, fill=member_casual)) +
+  geom_col(show.legend = FALSE) +
+  geom_text(aes(label = sprintf("%.2f", as.numeric(duration)/60) ), color = "red") +
+  ylab("Average bike duration in minutes") +
+  xlab("Member_casual")
+
+```
+From visualize we know that casual users bike longer than member users
+
+#### b. Average ride duration monthly (July 2022 - June 2023)
+```{r set_month_dur_data}
+
+# initialize data frame
+ride_dur_month <- data.frame(month = c("jul", "aug", "sep", "oct", "nov", "dec", "jan", "feb", 
+                                         "march", "apr", "mei", "jun",
+                                         "jul", "aug", "sep", "oct", "nov", "dec", "jan", "feb",
+                                         "march", "apr", "mei", "jun"))
+avg_df <- data.frame(member_casual = c(NA), avg_dur = c(NA))
+
+```
+
+```{r get_month_dur_data}
+# set function to get month data using loop
+
+avg_duration <- function(data, mem_cas, count_df = NA ){
+  #this function to take the average ride duration on data frame  
+  
+  if(mem_cas == "member") {
+      count_data <-  mean(data$time_total[data$month == 7])
+      count_df <- data.frame(member_casual = c(mem_cas), avg_dur = c(count_data))
+  }
+  else {
+      count_data <-  mean(data$time_total[data$month == 7])
+      count_df[nrow(count_df) + 1, ] <- c(member_casual = mem_cas, avg_dur = count_data)
+  }
+  for (i in 8:12) {
+      count_data <-  mean(data$time_total[data$month == i])
+      count_df[nrow(count_df) + 1, ] <- c(member_casual = mem_cas, avg_dur = count_data)
+  }
+  for (i in 1:6) {
+      count_data <-  mean(data$time_total[data$month == i])
+      count_df[nrow(count_df) + 1, ] <- c(member_casual = mem_cas, avg_dur = count_data)
+  }
+  return(count_df)
+  
+}
+
+#get data duration
+avg_df <- avg_df[nrow(avg_df) + 1, ] <- avg_duration(data = data_member, mem_cas = "member")
+avg_df <- avg_df[nrow(avg_df) + 1, ] <- avg_duration(data = data_casual, mem_cas = "casual", count_df = avg_df) 
+
+avg_df
+
+```
+
+```{r avg_dur_in_month}
+# join into table
+ride_dur_month$member_casual <- avg_df$member_casual
+ride_dur_month$avg_dur <-  avg_df$avg_dur
+
+ride_dur_month
+
+```
+
+```{r vis_avg_dur_month}
+
+# Visualize into barchart
+
+ride_dur_month %>%
+  ggplot(aes(fill=member_casual, y=as.numeric(avg_dur)/60, x=fct_inorder(month))) +
+  geom_bar(position="dodge", stat="identity") +
+  ylab("Average bike duration in minutes") +
+  xlab("Member_casual")
+
+```
+From visualize we know that peoples bike longer in middle of the year (in US this is a spring)
+
+#### c. Average ride duration daily of all month (July 2022 - June 2023)
+```{r set_day_dur_data}
+# initialize data frame
+
+avg_dur_days <- data.frame(dates = c(NA), member_casual = c(NA), avg_dur = c(NA))
+
+```
+
+```{r get_day_dur_data}
+# set function to get daily data using loop
+
+avg_duration <- function(data, mem_cas, count_df = NA ){
+  #this function to take the average ride duration on data frame  
+  i = 1
+  if(mem_cas == "member") {
+      count_data <-  mean(data$time_total[data$day == i])
+      count_df <- data.frame(dates = c(i), member_casual = c(mem_cas), avg_dur = c(count_data))
+  }
+  else {
+      count_data <-  mean(data$time_total[data$day == i])
+      count_df[nrow(count_df) + 1, ] <- c(dates = i, member_casual = mem_cas, avg_dur = count_data)
+  }
+  
+  for (i in 2:31) {
+      count_data <-  mean(data$time_total[data$day == i])
+      count_df[nrow(count_df) + 1, ] <- c(dates = i, member_casual = mem_cas, avg_dur = count_data)
+  }
+  return(count_df)
+  
+}
+
+```
+
+```{r avg_dur_in_days}
+
+#get data duration
+avg_dur_days <- avg_dur_days[nrow(avg_dur_days) + 1, ] <- avg_duration(data = data_member, mem_cas = "member")
+avg_dur_days <- avg_dur_days[nrow(avg_dur_days) + 1, ] <- avg_duration(data = data_casual, mem_cas = "casual", count_df = avg_dur_days) 
+
+avg_dur_days
+
+```
+
+```{r vis_avg_dur_day_in_month}
+
+# Visualize into bar chart
+
+avg_dur_days %>% 
+  ggplot(aes(fill=member_casual, y=as.numeric(avg_dur)/60, x=fct_inorder(dates))) + 
+  geom_bar(position="dodge", stat="identity") +
+  ylab("Average bike duration in minutes") +
+  xlab("Member_casual")
+
+```
+
+From Visualize we know that bike data are distributed evenly for every dates
